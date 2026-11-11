@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { createStore, validateBackup } from '../js/store.js';
-import { lessons, previewLesson, stages, a1Topics } from '../js/content.js';
+import { lessons, previewLesson, stages, a1Topics, a2Topics, curriculumLevels } from '../js/content.js';
 
 // This is a mocked-DOM integration smoke test of the actual app and store.
 // It does not run a browser, calculate layout, exercise native focus/dialog
@@ -20,7 +20,7 @@ function memoryStorage() {
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
 }
 
-function harness({ curriculum = lessons } = {}) {
+function harness({ curriculum = lessons, storage = memoryStorage() } = {}) {
   const nodes = new Map();
   let document;
   class Node {
@@ -100,12 +100,11 @@ function harness({ curriculum = lessons } = {}) {
     constructor(...args) { super(...(args.length ? args : [NOW])); }
     static now() { return Date.parse(NOW); }
   }
-  const storage = memoryStorage();
   const context = vm.createContext({
     document, window, location,
     Date: FixedDate,
     createStore: () => createStore(storage, () => new Date(NOW)),
-    validateBackup, lessons: curriculum, previewLesson, stages, a1Topics,
+    validateBackup, lessons: curriculum, previewLesson, stages, curriculumLevels,
     navigator: { clipboard: { writeText: async () => {} } },
     setTimeout: () => 1, clearTimeout() {},
   });
@@ -128,7 +127,7 @@ function harness({ curriculum = lessons } = {}) {
 
 test('every route and all six lesson stages render with the real content module', async () => {
   const app = harness();
-  for (const [route, title] of [['home', '오늘의 러시아어'], ['lessons', '나의 학습 여정'], ['study/preview', '취향 말하기'], ['review', '다시 만나는 문장'], ['sentences', '내 문장'], ['unknown', '오늘의 러시아어']]) {
+  for (const [route, title] of [['home', '오늘의 러시아어'], ['lessons', '나의 학습 여정'], ['lessons/A1', 'A1 · 입문'], ['lessons/A2', 'A2 · 기초'], ['study/preview', '취향 말하기'], ['review', '다시 만나는 문장'], ['sentences', '내 문장'], ['unknown', '오늘의 러시아어']]) {
     app.navigate(route);
     assert.ok(app.html.includes(title), route);
     assert.match(app.nodes.get('navigation').innerHTML, /aria-current="page"/);
@@ -141,7 +140,7 @@ test('every route and all six lesson stages render with the real content module'
   }
 });
 
-test('all A1 lessons render their learning material through the six stages', async () => {
+test('all A1 and A2 lessons render their learning material through the six stages', async () => {
   const app = harness();
   const escaped = text => text.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
   for (const lesson of lessons) {
@@ -184,11 +183,12 @@ test('all A1 lessons render their learning material through the six stages', asy
 
 test('A1 topic navigation lists every lesson once and opens the next unfinished topic', async () => {
   const app = harness();
+  const a1Lessons = lessons.filter(l => l.level === 'A1');
   app.navigate('lessons');
-  assert.ok(app.html.includes(`${a1Topics.length}개 주제, ${lessons.length}개 레슨`));
+  assert.ok(app.html.includes(`${a1Topics.length}개 주제, ${a1Lessons.length}개 레슨`));
   assert.equal((app.html.match(/class="topic-group card"/g) || []).length, a1Topics.length);
   const links = [...app.html.matchAll(/href="#study\/(a1-[^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(links, lessons.map(l => l.id));
+  assert.deepEqual(links, a1Lessons.map(l => l.id));
   const firstTopic = lessons.filter(l => l.topic === 1);
   for (const lesson of firstTopic) {
     app.navigate(`study/${lesson.id}`);
@@ -229,16 +229,87 @@ test('formal A1 lessons resume independently, advance the home lesson, and keep 
   assert.ok(app.html.includes(`${lessons.length}개 레슨 중 1개 완료`));
 });
 
-test('finishing all A1 lessons presents a completion state and keeps material available', () => {
+test('finishing A1 and A2 presents a completion state and keeps both levels available', () => {
   const app = harness();
   for (const lesson of lessons) app.store.setProgress(lesson.id, 5, true);
   app.navigate('home');
-  assert.match(app.html, /A1 한 바퀴 완료/);
+  assert.match(app.html, /A1·A2 한 바퀴 완료/);
   assert.match(app.html, /aria-valuenow="100"/);
   assert.match(app.html, /href="#lessons">레슨 다시 살펴보기/);
   app.navigate(`study/${lessons[0].id}`);
   assert.equal(app.currentLesson().id, lessons[0].id);
   assert.ok(app.html.includes(lessons[0].title));
+  app.navigate('lessons/A2');
+  assert.match(app.html, /이 수준의 레슨을 모두 마쳤어요/);
+  assert.match(app.html, /B1부터 C2까지/);
+  assert.doesNotMatch(app.html, /A2부터 C2까지/);
+});
+
+test('A2 navigation is independently addressable and preserves its lesson draft', async () => {
+  const app = harness();
+  const a2Lessons = lessons.filter(l => l.level === 'A2');
+  app.navigate('lessons/A2');
+  assert.ok(app.html.includes(`${a2Topics.length}개 주제, ${a2Lessons.length}개 레슨`));
+  assert.equal((app.html.match(/class="topic-group card"/g) || []).length, a2Topics.length);
+  const links = [...app.html.matchAll(/href="#study\/(a\d-[^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(links, a2Lessons.map(l => l.id));
+  assert.match(app.html, /href="#lessons\/A2" class="level-choice active" aria-current="true"/);
+  assert.equal(app.document.title, '레슨 · 러시아어 노트');
+  assert.match(app.nodes.get('navigation').innerHTML, /href="#lessons" class="nav-item active"/);
+  const lesson = a2Lessons[0];
+  app.navigate(`study/${lesson.id}`);
+  assert.match(app.html, /href="#lessons\/A2" aria-label="레슨 목록"/);
+  assert.ok(app.html.includes(a2Topics[0].title));
+  await app.click('step', { step: '3' });
+  await app.type('Я говорю́ с дру́гом.');
+  app.navigate('lessons/A1');
+  assert.doesNotMatch(app.html, /href="#study\/a2-/);
+  app.navigate(`study/${lesson.id}`);
+  assert.equal(app.nodes.get('sentence-input').value, 'Я говорю́ с дру́гом.');
+  await app.click('complete');
+  assert.equal(app.store.getState().progress[lesson.id].completed, true);
+  assert.equal(app.store.getState().progress[lessons[0].id], undefined, 'A2 can be studied without completing A1 first');
+});
+
+test('existing A1 records survive A2 availability and continue into the next level', async () => {
+  const storage = memoryStorage();
+  const a1Lessons = lessons.filter(l => l.level === 'A1');
+  const a2Lessons = lessons.filter(l => l.level === 'A2');
+  const previous = harness({ curriculum: a1Lessons, storage });
+  for (const lesson of a1Lessons) previous.store.setProgress(lesson.id, 5, true);
+  previous.store.setDraft(a1Lessons[0].id, 'Мой дом.');
+  previous.store.setDraft('preview', 'Я чита́ю.');
+  const sentence = previous.store.saveSentence({ text: 'Я люблю́ чита́ть.', lessonId: a1Lessons[0].id });
+  previous.store.addToReview(sentence.id);
+  previous.store.updateSettings({ dailyGoal: 3 });
+  const before = previous.store.getState();
+  const app = harness({ storage });
+  assert.deepEqual(app.store.getState(), before);
+  assert.match(app.html, /A2 · 오늘의 레슨/);
+  assert.ok(app.html.includes(`href="#study/${a2Lessons[0].id}"`));
+  assert.ok(app.html.includes(`${lessons.length}개 레슨 중 ${a1Lessons.length}개 완료`));
+  assert.match(app.html, /A1 완료/);
+  assert.doesNotMatch(app.html, /한 바퀴 완료/);
+  app.navigate('lessons');
+  assert.match(app.html, /href="#lessons\/A2" class="level-choice active"/);
+  app.navigate(`study/${a2Lessons[0].id}`);
+  await app.click('complete');
+  assert.ok(app.html.includes(`href="#study/${a2Lessons[1].id}"`));
+  assert.deepEqual(app.store.getState().reviews, before.reviews);
+  assert.deepEqual(app.store.getState().sentences, before.sentences);
+  assert.deepEqual(app.store.getState().drafts, before.drafts);
+  app.navigate('lessons/A1');
+  assert.match(app.html, /이 수준의 레슨을 모두 마쳤어요/);
+});
+
+test('unknown or malformed level routes fall back to a usable lesson list', () => {
+  const app = harness();
+  for (const path of ['lessons/unknown', 'lessons/%E0%A4%A']) {
+    app.navigate(path);
+    assert.match(app.html, /A1 · 입문/);
+    assert.match(app.html, /href="#study\/a1-/);
+    assert.doesNotMatch(app.html, /undefined/);
+  }
 });
 
 test('changing a stage returns to the start of its content and restores main focus', async () => {
@@ -263,7 +334,7 @@ test('malformed URI and unknown lesson IDs safely render the preview', () => {
 });
 
 test('finishing a preview never completes a real lesson, while an actual lesson can complete', async () => {
-  const real = { ...previewLesson, id: 'real-one', isPreview: false };
+  const real = { ...previewLesson, id: 'real-one', level: 'A1', topic: 1, isPreview: false };
   const app = harness({ curriculum: [real] });
   app.navigate('study/preview');
   await app.click('step', { step: '5' });

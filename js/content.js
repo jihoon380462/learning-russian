@@ -1,6 +1,9 @@
 import { a1Foundations } from './lessons/a1-foundations.js';
 import { a1Cases } from './lessons/a1-cases.js';
 import { a1Actions } from './lessons/a1-actions.js';
+import { a2Forms } from './lessons/a2-forms.js';
+import { a2Usage } from './lessons/a2-usage.js';
+import { a2Communication } from './lessons/a2-communication.js';
 
 // 주제 번호는 docs/curriculum.md와 연결되며, 한 주제에 여러 레슨을 둡니다.
 export const a1Topics = [
@@ -25,7 +28,32 @@ export const a1Topics = [
   { id: 19, title: '짧은 문장 연결' },
 ];
 
-export const lessons = [...a1Foundations, ...a1Cases, ...a1Actions];
+export const a2Topics = [
+  { id: 20, title: '여섯 격 확장' },
+  { id: 21, title: '수량·날짜·나이' },
+  { id: 22, title: '자신과 자신의 것' },
+  { id: 23, title: '비교하고 선택하기' },
+  { id: 24, title: '상태와 감정 표현' },
+  { id: 25, title: '동사상 활용' },
+  { id: 26, title: '이동동사 확장' },
+  { id: 27, title: '시간과 기간' },
+  { id: 28, title: '이유·목적·조건' },
+  { id: 29, title: '설명을 덧붙이는 문장' },
+  { id: 30, title: '생활 상황 종합' },
+];
+
+export const curriculumLevels = [
+  {
+    id: 'A1', label: '입문', topics: a1Topics,
+    description: '알파벳 다음부터, 일상의 생각을 표현하는 첫 문장까지. 필요한 레슨은 언제든 다시 펼쳐 보세요.',
+  },
+  {
+    id: 'A2', label: '기초', topics: a2Topics,
+    description: '익힌 문장을 연결해 경험과 계획을 이야기하고, 약속·쇼핑·여행 등 생활 속 문제를 해결해 보세요.',
+  },
+];
+
+export const lessons = [...a1Foundations, ...a1Cases, ...a1Actions, ...a2Forms, ...a2Usage, ...a2Communication];
 
 export const stages = [
   { id: 'input', label: '단어', name: 'Input' },

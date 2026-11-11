@@ -1,15 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { lessons, previewLesson, stages, a1Topics } from '../js/content.js';
+import { lessons, previewLesson, stages, a1Topics, a2Topics, curriculumLevels } from '../js/content.js';
 
 const curriculum = await readFile(new URL('../docs/curriculum.md', import.meta.url), 'utf8');
-const a1Section = curriculum.split('## A1 ')[1]?.split('\n## A2 ')[0] ?? '';
-const documentedTopicEntries = [...a1Section.matchAll(/^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/gm)]
-  .map(match => ({ id: Number(match[1]), title: match[2] }));
-const documentedTopics = documentedTopicEntries.map(topic => topic.id);
-const a1Lessons = lessons.filter(lesson => lesson.level === 'A1');
 const levels = new Set(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
+const implementedLevels = [
+  { id: 'A1', next: 'A2', topics: a1Topics },
+  { id: 'A2', next: 'B1', topics: a2Topics },
+];
+const contentDocs = Object.fromEntries(await Promise.all(implementedLevels.map(async ({ id }) => [
+  id, await readFile(new URL(`../docs/${id.toLowerCase()}-content.md`, import.meta.url), 'utf8'),
+])));
+
+// Released IDs are referenced by existing drafts, sentences and progress.
+// Preserve these even if later edits change titles, order or lesson counts.
+const releasedA1Counts = [3, 2, 2, 2, 2, 2, 3, 3, 2, 2, 3, 2, 2, 2, 2, 2, 3, 2, 2];
+const releasedA1Ids = releasedA1Counts.flatMap((count, index) => Array.from({ length: count }, (_, lesson) =>
+  `a1-${String(index + 1).padStart(2, '0')}-${String(lesson + 1).padStart(2, '0')}`));
 
 function text(value, path) {
   assert.equal(typeof value, 'string', `${path} must be text`);
@@ -57,20 +65,51 @@ test('formal lessons have unique stable IDs and valid levels, separate from the 
   }
 });
 
-test('A1 covers the documented topics in order without splitting topic groups', () => {
-  assert.ok(documentedTopics.length > 0, 'A1 topic table must be readable');
-  assert.deepEqual(a1Topics, documentedTopicEntries, 'topic labels must stay aligned with the curriculum');
-  const topicRuns = a1Lessons.map(lesson => lesson.topic).filter((topic, index, topics) => index === 0 || topic !== topics[index - 1]);
-  assert.deepEqual(topicRuns, documentedTopics, 'each A1 topic needs one contiguous group in curriculum order');
-  for (const lesson of a1Lessons) {
-    assert.match(lesson.id, /^a1-\d{2}-\d{2}$/u);
-    assert.equal(Number(lesson.id.split('-')[1]), lesson.topic, `${lesson.id}: topic identity mismatch`);
+test('level navigation exposes available A1 and A2 content in learning order', () => {
+  assert.deepEqual(curriculumLevels.map(level => level.id), implementedLevels.map(level => level.id));
+  const levelRuns = lessons.map(lesson => lesson.level).filter((level, index, items) => index === 0 || level !== items[index - 1]);
+  assert.deepEqual(levelRuns, curriculumLevels.map(level => level.id), 'levels must stay contiguous and navigable');
+  for (const level of curriculumLevels) {
+    text(level.label, `${level.id}.label`);
+    text(level.description, `${level.id}.description`);
+    assert.deepEqual(level.topics, implementedLevels.find(item => item.id === level.id).topics);
   }
 });
 
-test('each A1 lesson provides goals, explanation, free creation and recall material', () => {
+for (const { id, next, topics } of implementedLevels) {
+  test(`${id} covers its documented topics and lesson map in order`, () => {
+    const section = curriculum.split(`## ${id} `)[1]?.split(`\n## ${next} `)[0] ?? '';
+    const documentedTopicEntries = [...section.matchAll(/^\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|/gm)]
+      .map(match => ({ id: Number(match[1]), title: match[2] }));
+    const documentedTopics = documentedTopicEntries.map(topic => topic.id);
+    const levelLessons = lessons.filter(lesson => lesson.level === id);
+    assert.ok(documentedTopics.length > 0, `${id} topic table must be readable`);
+    assert.deepEqual(topics, documentedTopicEntries, 'topic labels must stay aligned with the curriculum');
+    const topicRuns = levelLessons.map(lesson => lesson.topic).filter((topic, index, items) => index === 0 || topic !== items[index - 1]);
+    assert.deepEqual(topicRuns, documentedTopics, `each ${id} topic needs one contiguous group in curriculum order`);
+    const lessonMap = contentDocs[id].split('## 주제별 레슨')[1]?.split('\n## ')[0] ?? '';
+    const mappedIds = [...lessonMap.matchAll(/`(a[12]-\d{2}-\d{2})`/g)].map(match => match[1]);
+    assert.deepEqual(mappedIds, levelLessons.map(lesson => lesson.id), 'the learner-facing map must list each lesson once');
+    const documentedCount = contentDocs[id].match(/(\d+)개 레슨으로/);
+    assert.ok(documentedCount, `${id} content guide must state its lesson count`);
+    assert.equal(Number(documentedCount[1]), levelLessons.length, 'documented scope must match available lessons');
+    for (const lesson of levelLessons) {
+      assert.match(lesson.id, new RegExp(`^${id.toLowerCase()}-\\d{2}-\\d{2}$`, 'u'));
+      assert.equal(Number(lesson.id.split('-')[1]), lesson.topic, `${lesson.id}: topic identity mismatch`);
+      assert.ok(lessonMap.includes(`\`${lesson.id}\` ${lesson.title}`), `${lesson.id}: documented title is stale`);
+    }
+  });
+}
+
+test('adding A2 preserves the IDs used by existing A1 learner records', () => {
+  const a1Ids = new Set(lessons.filter(lesson => lesson.level === 'A1').map(lesson => lesson.id));
+  assert.equal(releasedA1Ids.length, 43);
+  for (const id of releasedA1Ids) assert.ok(a1Ids.has(id), `${id}: a released lesson must remain addressable`);
+});
+
+test('each formal lesson provides goals, explanation, free creation and recall material', () => {
   const prompts = new Set();
-  for (const lesson of a1Lessons) {
+  for (const lesson of lessons) {
     for (const key of ['title', 'description', 'prompt']) text(lesson[key], `${lesson.id}.${key}`);
     for (const key of ['objectives', 'creationHints', 'reviewQuestions']) textList(lesson[key], `${lesson.id}.${key}`);
     assert.ok(lesson.grammar && typeof lesson.grammar === 'object', `${lesson.id}.grammar`);
@@ -83,7 +122,7 @@ test('each A1 lesson provides goals, explanation, free creation and recall mater
 });
 
 test('vocabulary and examples have Russian text and Korean meanings', () => {
-  for (const lesson of [...a1Lessons, previewLesson]) {
+  for (const lesson of [...lessons, previewLesson]) {
     for (const key of ['words', 'examples']) {
       assert.ok(Array.isArray(lesson[key]) && lesson[key].length > 0, `${lesson.id}.${key} must contain material`);
       lesson[key].forEach((item, index) => {
@@ -101,7 +140,7 @@ test('vocabulary and examples have Russian text and Korean meanings', () => {
 
 test('Russian vocabulary and example words mark multisyllabic stress', () => {
   const problems = [];
-  for (const lesson of [...a1Lessons, previewLesson]) {
+  for (const lesson of [...lessons, previewLesson]) {
     for (const key of ['words', 'examples']) {
       lesson[key].forEach((item, index) => problems.push(...stressProblems(item.ru, `${lesson.id}.${key}[${index}]`)));
     }
@@ -109,8 +148,26 @@ test('Russian vocabulary and example words mark multisyllabic stress', () => {
   assert.deepEqual(problems, [], `Missing or malformed stress marks:\n${problems.join('\n')}`);
 });
 
+test('lesson text avoids words that mix Latin and Cyrillic lookalike letters', () => {
+  const problems = [];
+  function inspect(value, path) {
+    if (typeof value === 'string') {
+      const tokens = value.normalize('NFC').match(/[A-Za-zА-Яа-яЁё\u0301]+/gu) ?? [];
+      for (const token of tokens) {
+        if (/[A-Za-z]/u.test(token) && /[А-Яа-яЁё]/u.test(token)) problems.push(`${path}: ${token}`);
+      }
+    } else if (Array.isArray(value)) {
+      value.forEach((item, index) => inspect(item, `${path}[${index}]`));
+    } else if (value && typeof value === 'object') {
+      for (const [key, item] of Object.entries(value)) inspect(item, `${path}.${key}`);
+    }
+  }
+  for (const lesson of [...lessons, previewLesson]) inspect(lesson, lesson.id);
+  assert.deepEqual(problems, [], `Mixed-script words can look correct but break spelling and speech:\n${problems.join('\n')}`);
+});
+
 test('grammar tables keep column headings aligned with every row', () => {
-  for (const lesson of a1Lessons) {
+  for (const lesson of lessons) {
     const table = lesson.grammar.table;
     if (table === undefined) continue;
     textList(table.headers, `${lesson.id}.grammar.table.headers`);
