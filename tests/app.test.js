@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { createStore, validateBackup } from '../js/store.js';
-import { lessons, previewLesson, stages } from '../js/content.js';
+import { lessons, previewLesson, stages, a1Topics } from '../js/content.js';
 
 // This is a mocked-DOM integration smoke test of the actual app and store.
 // It does not run a browser, calculate layout, exercise native focus/dialog
@@ -82,9 +82,10 @@ function harness({ curriculum = lessons } = {}) {
     createElement() { return new Node(); },
   };
   const windowListeners = new Map();
+  const scrollCalls = [];
   const window = {
     addEventListener(type, callback) { windowListeners.set(type, callback); },
-    scrollTo() {},
+    scrollTo(options) { scrollCalls.push(options); },
   };
   let hash = '';
   const location = {};
@@ -104,14 +105,14 @@ function harness({ curriculum = lessons } = {}) {
     document, window, location,
     Date: FixedDate,
     createStore: () => createStore(storage, () => new Date(NOW)),
-    validateBackup, lessons: curriculum, previewLesson, stages,
+    validateBackup, lessons: curriculum, previewLesson, stages, a1Topics,
     navigator: { clipboard: { writeText: async () => {} } },
     setTimeout: () => 1, clearTimeout() {},
   });
   vm.runInContext(source + '\nglobalThis.testApp = { render, action, store, currentLesson };', context, { filename: 'js/app.js' });
   const api = context.testApp;
   return {
-    ...api, nodes, document,
+    ...api, nodes, document, scrollCalls,
     get html() { return nodes.get('app').innerHTML; },
     get modal() { return nodes.get('modal'); },
     navigate(path) { location.hash = path; api.render(); },
@@ -138,6 +139,118 @@ test('every route and all six lesson stages render with the real content module'
     assert.match(app.html, new RegExp(`${step + 1} / 6`));
     assert.equal(app.store.getState().progress.preview.step, step);
   }
+});
+
+test('all A1 lessons render their learning material through the six stages', async () => {
+  const app = harness();
+  const escaped = text => text.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+  for (const lesson of lessons) {
+    app.navigate(`study/${lesson.id}`);
+    assert.equal(app.currentLesson().id, lesson.id);
+    assert.ok(app.html.includes(escaped(lesson.objectives[0])), `${lesson.id}: learning goal`);
+    for (let step = 0; step < stages.length; step++) {
+      await app.click('step', { step: String(step) });
+      assert.ok(app.html.includes(escaped(lesson.title)), `${lesson.id}: stage ${step}`);
+      assert.doesNotMatch(app.html, /undefined|\[object Object\]/);
+      if (step === 0) {
+        for (const word of lesson.words) {
+          assert.ok(app.html.includes(escaped(word.ru)), `${lesson.id}: ${word.ru}`);
+          if (word.note) assert.ok(app.html.includes(escaped(word.note)));
+        }
+      }
+      if (step === 1) {
+        assert.ok(app.html.includes(escaped(lesson.grammar.explanation)));
+        for (const note of lesson.grammar.notes) assert.ok(app.html.includes(escaped(note)));
+        if (lesson.grammar.table) {
+          assert.match(app.html, /<caption>형태와 용법 정리<\/caption>/);
+          for (const row of lesson.grammar.table.rows) {
+            for (const cell of row) assert.ok(app.html.includes(escaped(cell)), `${lesson.id}: table cell ${cell}`);
+          }
+        }
+      }
+      if (step === 2) for (const example of lesson.examples) assert.ok(app.html.includes(escaped(example.ru)));
+      if (step === 3) {
+        assert.ok(app.html.includes(escaped(lesson.prompt)));
+        for (const hint of lesson.creationHints) assert.ok(app.html.includes(escaped(hint)));
+        await app.click('reference', { tab: 'grammar' });
+        assert.ok(app.html.includes(escaped(lesson.grammar.notes[0])));
+        await app.click('reference', { tab: 'expression' });
+      }
+      if (step === 5) for (const question of lesson.reviewQuestions) assert.ok(app.html.includes(escaped(question)));
+    }
+    assert.equal(app.store.getState().progress[lesson.id].completed, false, 'browsing does not mark a lesson complete');
+  }
+});
+
+test('A1 topic navigation lists every lesson once and opens the next unfinished topic', async () => {
+  const app = harness();
+  app.navigate('lessons');
+  assert.ok(app.html.includes(`${a1Topics.length}개 주제, ${lessons.length}개 레슨`));
+  assert.equal((app.html.match(/class="topic-group card"/g) || []).length, a1Topics.length);
+  const links = [...app.html.matchAll(/href="#study\/(a1-[^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(links, lessons.map(l => l.id));
+  const firstTopic = lessons.filter(l => l.topic === 1);
+  for (const lesson of firstTopic) {
+    app.navigate(`study/${lesson.id}`);
+    await app.click('complete');
+  }
+  app.navigate('lessons');
+  const expanded = app.html.match(/<details class="topic-group card" open>[\s\S]*?<\/details>/g);
+  assert.equal(expanded.length, 1);
+  assert.ok(expanded[0].includes(a1Topics.find(t => t.id === 2).title));
+});
+
+test('formal A1 lessons resume independently, advance the home lesson, and keep reviews separate', async () => {
+  const app = harness();
+  const [first, second] = lessons;
+  app.navigate(`study/${first.id}`);
+  await app.click('step', { step: '3' });
+  await app.type('Моя́ пе́рвая фра́за.');
+  app.navigate(`study/${second.id}`);
+  await app.click('step', { step: '3' });
+  assert.equal(app.nodes.get('sentence-input').value, '');
+  await app.type('Втора́я фра́за.');
+  app.navigate(`study/${first.id}`);
+  assert.equal(app.nodes.get('sentence-input').value, 'Моя́ пе́рвая фра́за.');
+  await app.click('save-sentence');
+  const saved = app.store.getState().sentences[0];
+  assert.equal(saved.lessonId, first.id);
+  await app.click('add-review', { id: saved.id });
+  const reviewsBefore = app.store.getState().reviews;
+  await app.click('complete');
+  assert.ok(app.html.includes(`href="#study/${second.id}"`));
+  assert.ok(app.html.includes(`${lessons.length}개 레슨 중 1개 완료`));
+  assert.deepEqual(app.store.getState().reviews, reviewsBefore);
+  assert.equal(app.store.getState().drafts[second.id], 'Втора́я фра́за.');
+  app.navigate(`study/${second.id}`);
+  assert.equal(app.nodes.get('sentence-input').value, 'Втора́я фра́за.');
+  app.navigate('study/preview');
+  await app.click('complete');
+  assert.ok(app.html.includes(`${lessons.length}개 레슨 중 1개 완료`));
+});
+
+test('finishing all A1 lessons presents a completion state and keeps material available', () => {
+  const app = harness();
+  for (const lesson of lessons) app.store.setProgress(lesson.id, 5, true);
+  app.navigate('home');
+  assert.match(app.html, /A1 한 바퀴 완료/);
+  assert.match(app.html, /aria-valuenow="100"/);
+  assert.match(app.html, /href="#lessons">레슨 다시 살펴보기/);
+  app.navigate(`study/${lessons[0].id}`);
+  assert.equal(app.currentLesson().id, lessons[0].id);
+  assert.ok(app.html.includes(lessons[0].title));
+});
+
+test('changing a stage returns to the start of its content and restores main focus', async () => {
+  const app = harness();
+  app.navigate(`study/${lessons[0].id}`);
+  await app.click('step', { step: '3' });
+  app.nodes.get('sentence-input').focus();
+  const scrollCount = app.scrollCalls.length;
+  await app.click('step', { step: '1' });
+  assert.equal(app.scrollCalls.length, scrollCount + 1);
+  assert.equal(app.scrollCalls.at(-1).top, 0);
+  assert.equal(app.document.activeElement.id, 'app');
 });
 
 test('malformed URI and unknown lesson IDs safely render the preview', () => {
