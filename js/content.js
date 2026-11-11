@@ -1,8 +1,31 @@
-/**
- * 정식 커리큘럼은 추후 추가합니다.
- * previewLesson은 UI와 학습 흐름을 확인하기 위한 샘플입니다.
- */
-export const lessons = [];
+import { a1Foundations } from './lessons/a1-foundations.js';
+import { a1Cases } from './lessons/a1-cases.js';
+import { a1Actions } from './lessons/a1-actions.js';
+
+// 주제 번호는 docs/curriculum.md와 연결되며, 한 주제에 여러 레슨을 둡니다.
+export const a1Topics = [
+  { id: 1, title: '발음과 강세 익히기' },
+  { id: 2, title: '인사와 자기소개' },
+  { id: 3, title: '가장 기본적인 문장' },
+  { id: 4, title: '명사의 성과 수' },
+  { id: 5, title: '사람과 소유 표현' },
+  { id: 6, title: '사람과 사물 묘사' },
+  { id: 7, title: '숫자와 생활 정보' },
+  { id: 8, title: '현재 하는 일' },
+  { id: 9, title: '어디에 있는지 말하기' },
+  { id: 10, title: '무엇을 하는지 말하기' },
+  { id: 11, title: '가지고 있는 것과 없는 것' },
+  { id: 12, title: '누구에게, 누구에게 필요한지' },
+  { id: 13, title: '누구와, 무엇으로 하는지' },
+  { id: 14, title: '어제 있었던 일' },
+  { id: 15, title: '동사상의 첫 이해' },
+  { id: 16, title: '앞으로 할 일' },
+  { id: 17, title: '이동과 목적지' },
+  { id: 18, title: '부탁·허락·필요 표현' },
+  { id: 19, title: '짧은 문장 연결' },
+];
+
+export const lessons = [...a1Foundations, ...a1Cases, ...a1Actions];
 
 export const stages = [
   { id: 'input', label: '단어', name: 'Input' },

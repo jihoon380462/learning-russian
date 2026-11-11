@@ -1,5 +1,5 @@
 import { createStore, validateBackup } from './store.js';
-import { lessons, previewLesson, stages } from './content.js';
+import { lessons, previewLesson, stages, a1Topics } from './content.js';
 
 const icons = {
   home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/>',
@@ -70,23 +70,39 @@ function sentenceCard(sentence, compact = false) {
 }
 function home() {
   const completed = lessons.filter(l => state.progress[l.id]?.completed).length;
+  const completedAll = lessons.length > 0 && completed === lessons.length;
   const next = lessons.find(l => !state.progress[l.id]?.completed) || lessons[0];
   const recent = [...state.sentences].sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0,2);
   const today = new Date().toLocaleDateString('en-CA');
   const todayCount = state.sentences.filter(s => new Date(s.createdAt).toLocaleDateString('en-CA') === today).length;
   return `<div class="page home-page"><div class="page-heading"><p class="eyebrow">나의 속도로, 나의 문장으로</p><h1>오늘의 러시아어</h1><span class="heading-stroke" aria-hidden="true"></span></div>
-    <div class="home-grid"><section class="hero card"><div class="hero-copy"><span class="badge">${next?'오늘의 레슨':'나만의 러시아어 노트'}</span><h2>${next?escape(next.title):'문장 하나로<br>시작하는 러시아어'}</h2><p>${next?escape(next.description):'작은 표현을 모아,<br>내 생각을 문장으로 만들어 보세요.'}</p><a class="button primary" href="#study/${next?encodeURIComponent(next.id):'preview'}">${next?'이어서 학습':'문장 연습하기'} ${icon('arrow')}</a></div><img class="hero-art" src="./assets/stationery.svg" alt="종이 위에 놓인 버건디색 펜" width="200" height="220"></section>
+    <div class="home-grid"><section class="hero card"><div class="hero-copy"><span class="badge">${completedAll?'A1 한 바퀴 완료':next?'오늘의 레슨':'나만의 러시아어 노트'}</span><h2>${completedAll?'이제, 내 이야기로<br>이어가 볼까요?':next?escape(next.title):'문장 하나로<br>시작하는 러시아어'}</h2><p>${completedAll?'배운 표현을 다시 꺼내 새로운 상황에 활용해 보세요.':next?escape(next.description):'작은 표현을 모아,<br>내 생각을 문장으로 만들어 보세요.'}</p><a class="button primary" href="${completedAll?'#lessons':'#study/'+(next?encodeURIComponent(next.id):'preview')}">${completedAll?'레슨 다시 살펴보기':next?'이어서 학습':'문장 연습하기'} ${icon('arrow')}</a></div><img class="hero-art" src="./assets/stationery.svg" alt="종이 위에 놓인 버건디색 펜" width="200" height="220"></section>
     <div class="stats-grid"><section class="stat-card progress-card"><div class="title-row"><h2>학습 진도</h2>${icon('flag')}</div><p>${lessons.length?`${lessons.length}개 레슨 중 ${completed}개 완료`:'정식 레슨 준비 중'}</p><div class="progress-track" role="progressbar" aria-label="레슨 완료율" aria-valuenow="${lessons.length?Math.round(completed/lessons.length*100):0}" aria-valuemin="0" aria-valuemax="100"><div class="progress-fill" style="width:${lessons.length?completed/lessons.length*100:0}%"></div></div><a class="text-link" href="#lessons">레슨 살펴보기 ${icon('arrow')}</a></section><section class="stat-card review-card"><div class="title-row"><h2>오늘의 복습</h2>${icon('review')}</div><p>기다리는 문장 <strong>${dueReviews().length}개</strong></p><a class="button secondary small" href="#review">복습하기 ${icon('arrow')}</a></section></div>
     <section class="recent-card card"><div class="section-heading"><h2>내가 저장한 문장</h2><a class="text-link" href="#sentences">더 보기 ${icon('arrow')}</a></div>${recent.length?recent.map(s=>sentenceCard(s,true)).join(''):empty('첫 문장을 기다리고 있어요','완벽하지 않아도 좋아요. 떠오르는 생각을 적어 보세요.')}</section></div>
     <div class="daily-strip">${icon('pen')}<span>오늘 쓴 문장 <strong>${todayCount}</strong><span class="subtle"> / ${state.settings.dailyGoal}개</span></span><span class="subtle">조금씩, 꾸준히</span></div>
   </div>`;
 }
 function lessonsPage() {
-  return `<div class="page"><div class="page-heading"><p class="eyebrow">INPUT TO CREATE</p><h1>나의 학습 여정</h1><p class="subtle">이해한 표현을 나만의 문장으로 연결해요.</p></div>${lessons.length?`<div class="stack">${lessons.map((l,i)=>`<a href="#study/${encodeURIComponent(l.id)}" class="card lesson-link"><span class="lesson-number">${String(i+1).padStart(2,'0')}</span><div class="grow"><h2>${escape(l.title)}</h2><p class="subtle">${escape(l.description)}</p></div>${state.progress[l.id]?.completed?icon('check'):icon('arrow')}</a>`).join('')}</div>`:`<section class="card">${empty('커리큘럼을 준비하고 있어요','학습 콘텐츠가 추가되면 이곳에서 순서대로 만나볼 수 있어요.')}</section>`}<section class="card sample-card"><span class="badge">화면 체험용</span><h2>취향 말하기</h2><p>샘플 표현으로 여섯 단계의 학습 흐름과 문장 작성을 체험해 보세요.</p><a class="button secondary" href="#study/preview">샘플 레슨 열기 ${icon('arrow')}</a><p class="optional-note">샘플은 정식 학습 진도에 포함되지 않아요.</p></section></div>`;
+  const topics = [...new Set(lessons.map(l => l.topic))];
+  const nextTopic = (lessons.find(l => !state.progress[l.id]?.completed) || lessons[0])?.topic;
+  const groups = topics.map(topic => {
+    const items = lessons.filter(l => l.topic === topic);
+    const completed = items.filter(l => state.progress[l.id]?.completed).length;
+    const title = a1Topics.find(t => t.id === topic)?.title || '레슨';
+    return `<details class="topic-group card" ${topic===nextTopic?'open':''}><summary><span class="topic-title">${topic?`<span class="topic-number">${String(topic).padStart(2,'0')}</span>`:''}${escape(title)}</span><span class="topic-progress">${completed} / ${items.length} 완료</span></summary><div class="topic-lessons">${items.map(l=>`<a href="#study/${encodeURIComponent(l.id)}" class="lesson-link"><span class="lesson-number">${escape(l.number)}</span><div class="grow"><h3>${escape(l.title)}</h3><p class="subtle">${escape(l.description)}</p><span class="lesson-status">${state.progress[l.id]?.completed?'완료':state.progress[l.id]?'학습 중':'시작하기'}</span></div>${state.progress[l.id]?.completed?icon('check'):icon('arrow')}</a>`).join('')}</div></details>`;
+  }).join('');
+  return `<div class="page"><div class="page-heading"><p class="eyebrow">INPUT TO CREATE</p><h1>나의 학습 여정</h1><p class="subtle">이해한 표현을 나만의 문장으로 연결해요.</p></div>${lessons.length?`<section class="curriculum-intro"><span class="badge">A1 · 입문</span><h2>${topics.length}개 주제, ${lessons.length}개 레슨</h2><p>알파벳 다음부터, 일상의 생각을 표현하는 첫 문장까지. 순서대로 시작하고 필요한 레슨은 언제든 다시 펼쳐 보세요.</p></section><div class="stack">${groups}</div><p class="progress-note">A2부터 C2까지의 레슨은 차례로 준비할 예정이에요.</p>`:`<section class="card">${empty('커리큘럼을 준비하고 있어요','학습 콘텐츠가 추가되면 이곳에서 순서대로 만나볼 수 있어요.')}</section>`}<section class="card sample-card"><span class="badge">화면 체험용</span><h2>취향 말하기</h2><p>샘플 표현으로 여섯 단계의 학습 흐름과 문장 작성을 체험해 보세요.</p><a class="button secondary" href="#study/preview">샘플 레슨 열기 ${icon('arrow')}</a><p class="optional-note">샘플은 정식 학습 진도에 포함되지 않아요.</p></section></div>`;
+}
+function learningList(items, cls = '') {
+  return items?.length ? `<ul class="learning-list ${cls}">${items.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>` : '';
+}
+function grammarContent(grammar) {
+  const table = grammar.table;
+  return `<p class="pattern">${escape(grammar.pattern)}</p><p class="grammar-explanation">${escape(grammar.explanation)}</p>${learningList(grammar.notes)}${table?`<div class="grammar-table-wrap" role="region" aria-label="형태와 용법 정리" tabindex="0"><table class="grammar-table"><caption>형태와 용법 정리</caption><thead><tr>${table.headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${table.rows.map(row=>`<tr>${row.map((cell,i)=>i===0?`<th scope="row">${escape(cell)}</th>`:`<td>${escape(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:''}`;
 }
 function reference(lesson) {
   const e = lesson.examples[0];
-  const body = referenceTab==='grammar' ? `<p class="pattern">${escape(lesson.grammar.pattern)}</p><p class="grammar-explanation">${escape(lesson.grammar.explanation)}</p>` : referenceTab==='examples' ? lesson.examples.map(e=>example(e)).join('') : `<div class="pattern"><span class="chip">문법</span><span>${escape(lesson.grammar.pattern)}</span></div>${example(e)}`;
+  const body = referenceTab==='grammar' ? grammarContent(lesson.grammar) : referenceTab==='examples' ? lesson.examples.map(e=>example(e)).join('') : `<div class="pattern"><span class="chip">문법</span><span>${escape(lesson.grammar.pattern)}</span></div>${example(e)}`;
   return `<section class="reference-card card"><div class="reference-tabs" role="tablist" aria-label="참고 자료">${[['expression','표현'],['grammar','문법'],['examples','예문']].map(([id,name])=>`<button id="tab-${id}" role="tab" aria-controls="reference-panel" aria-selected="${referenceTab===id}" data-action="reference" data-tab="${id}" class="${referenceTab===id?'active':''}">${name}</button>`).join('')}</div><div id="reference-panel" class="reference-content" role="tabpanel" aria-labelledby="tab-${referenceTab}">${body}</div><div class="word-chips"><span class="chip">참고 단어</span>${lesson.words.map(w=>`<button class="word-chip" data-action="speak" data-text="${attr(w.ru)}" aria-label="${attr(w.ru)} 듣기"><b lang="ru">${escape(w.ru)}</b><span>${escape(w.meaning)}</span></button>`).join('')}</div></section>`;
 }
 function example(e) {
@@ -94,14 +110,14 @@ function example(e) {
 }
 function writing(lesson) {
   const draft=state.drafts[lesson.id] || '';
-  return `<section class="writing-card card"><div class="writing-heading">${icon('pen')}<h2>내 문장 만들기</h2></div><p class="writing-tip">${escape(lesson.prompt)}</p><label for="sentence-input" class="sr-only">러시아어 문장 입력</label><textarea id="sentence-input" class="sentence-input" rows="5" maxlength="2000" spellcheck="false" lang="ru" placeholder="Я люблю́…" data-lesson="${attr(lesson.id)}">${escape(draft)}</textarea><div class="input-meta"><span id="draft-status">${draft?'임시 저장된 문장':''}</span><span><span id="char-count">${draft.length}</span> / 2,000</span></div><div class="writing-actions">${button('문장 저장 '+icon('arrow'),'save-sentence','primary')}${button(icon('sparkle')+'AI 교정 요청','feedback','secondary')}</div><p class="optional-note">AI 교정은 필요할 때 선택할 수 있어요.</p></section>`;
+  return `<section class="writing-card card"><div class="writing-heading">${icon('pen')}<h2>내 문장 만들기</h2></div><p class="writing-tip">${escape(lesson.prompt)}</p>${lesson.creationHints?.length?`<details class="creation-hints"><summary>막힐 때 참고하기</summary>${learningList(lesson.creationHints)}</details>`:''}<label for="sentence-input" class="sr-only">러시아어 문장 입력</label><textarea id="sentence-input" class="sentence-input" rows="5" maxlength="2000" spellcheck="false" lang="ru" placeholder="나만의 러시아어 문장을 적어 보세요" data-lesson="${attr(lesson.id)}">${escape(draft)}</textarea><div class="input-meta"><span id="draft-status">${draft?'임시 저장된 문장':''}</span><span><span id="char-count">${draft.length}</span> / 2,000</span></div><div class="writing-actions">${button('문장 저장 '+icon('arrow'),'save-sentence','primary')}${button(icon('sparkle')+'AI 교정 요청','feedback','secondary')}</div><p class="optional-note">AI 교정은 필요할 때 선택할 수 있어요.</p></section>`;
 }
 function studyPage() {
   const lesson=currentLesson();
   const step=state.progress[lesson.id]?.step ?? (lesson.isPreview?3:0);
   let body='';
-  if(step===0) body=`<section class="step-card card"><p class="eyebrow">INPUT</p><h2>표현을 만나 보세요</h2><p class="subtle">강세를 보고, 소리를 들으며 따라 읽어 보세요.</p><div class="word-list">${lesson.words.map(w=>`<div class="word-row"><div class="grow"><p class="ru" lang="ru">${escape(w.ru)}</p><p class="translation">${escape(w.meaning)}</p></div><button class="play-button" data-action="speak" data-text="${attr(w.ru)}" aria-label="${attr(w.ru)} 듣기">${icon('play')}</button></div>`).join('')}</div></section>`;
-  if(step===1) body=`<section class="step-card card"><p class="eyebrow">UNDERSTAND</p><h2>문장의 원리 이해하기</h2><div class="grammar-box"><p class="pattern">${escape(lesson.grammar.pattern)}</p><p>${escape(lesson.grammar.explanation)}</p></div>${lesson.examples.map(example).join('')}</section>`;
+  if(step===0) body=`<section class="step-card card"><p class="eyebrow">INPUT</p><h2>표현을 만나 보세요</h2><p class="subtle">강세를 보고, 소리를 들으며 따라 읽어 보세요.</p><div class="word-list">${lesson.words.map(w=>`<div class="word-row"><div class="grow"><p class="ru" lang="ru">${escape(w.ru)}</p><p class="translation">${escape(w.meaning)}</p>${w.note?`<p class="word-note">${escape(w.note)}</p>`:''}</div><button class="play-button" data-action="speak" data-text="${attr(w.ru)}" aria-label="${attr(w.ru)} 듣기">${icon('play')}</button></div>`).join('')}</div></section>`;
+  if(step===1) body=`<section class="step-card card"><p class="eyebrow">UNDERSTAND</p><h2>문장의 원리 이해하기</h2><div class="grammar-box">${grammarContent(lesson.grammar)}</div>${lesson.examples.map(example).join('')}</section>`;
   if(step===2) body=`<section class="step-card card"><p class="eyebrow">REPEAT</p><h2>읽고, 듣고, 말해 보세요</h2><p class="subtle">예문을 소리 내어 읽으며 문장의 리듬을 익혀요.</p>${lesson.examples.map(e=>`<div class="example-card"><p class="ru" lang="ru">${escape(e.ru)}</p><details><summary>뜻 확인하기</summary><p>${escape(e.meaning)}</p></details><div class="practice-nav">${button(icon('play')+'듣기','speak','secondary small',`data-text="${attr(e.ru)}"`)}${button('천천히 듣기','speak','ghost small',`data-text="${attr(e.ru)}" data-rate="0.65"`)}</div></div>`).join('')}</section>`;
   if(step===3) body=reference(lesson)+writing(lesson);
   if(step===4) body=`<section class="step-card card"><p class="eyebrow">FEEDBACK · 선택</p><h2>내 문장을 한 번 더 살펴봐요</h2><p>스스로 읽어 보고, 도움이 필요하면 AI에 교정을 요청해 보세요.</p><p class="subtle">교정 요청문을 복사해 사용하는 AI에 전달할 수 있어요.</p></section>`+writing(lesson);
@@ -111,9 +127,9 @@ function studyPage() {
   }
   if(step===5) {
     const sentences=state.sentences.filter(s=>s.lessonId===lesson.id);
-    body=`<section class="step-card card"><p class="eyebrow">REVIEW</p><h2>나중에 다시 꺼내 볼 문장</h2><p class="subtle">저장한 문장을 복습에 추가해 다시 활용해 보세요.</p>${sentences.length?sentences.map(s=>sentenceCard(s)).join(''):empty('아직 저장한 문장이 없어요','창작 단계에서 내 문장을 하나 적어 보세요.',button('문장 만들러 가기','step','secondary','data-step="3"'))}</section>`;
+    body=`${lesson.reviewQuestions?.length?`<section class="step-card card"><p class="eyebrow">RECALL</p><h2>기억에서 꺼내 보기</h2><p class="subtle">설명을 덮고 말해 본 뒤, 배운 표현으로 새 문장을 하나 더 만들어 보세요.</p>${learningList(lesson.reviewQuestions)}</section>`:''}<section class="step-card card"><p class="eyebrow">REVIEW</p><h2>나중에 다시 꺼내 볼 문장</h2><p class="subtle">저장한 문장을 복습에 추가해 다시 활용해 보세요. 레슨을 완료해도 복습 일정은 따로 관리돼요.</p>${sentences.length?sentences.map(s=>sentenceCard(s)).join(''):empty('아직 저장한 문장이 없어요','창작 단계에서 내 문장을 하나 적어 보세요.',button('문장 만들러 가기','step','secondary','data-step="3"'))}</section>`;
   }
-  return `<div class="page study-page"><div class="study-heading"><a class="back-link icon-button" href="#lessons" aria-label="레슨 목록">${icon('back')}</a><h1>${escape(lesson.title)}</h1><span class="step-counter">${step+1} / 6</span></div>${lesson.isPreview?'<p class="preview-notice">샘플 레슨 · 정식 학습 콘텐츠는 추후 추가됩니다.</p>':''}<div class="stage-nav" aria-label="학습 단계">${stages.map((s,i)=>`<button class="stage ${i===step?'active':''}" data-action="step" data-step="${i}" ${i===step?'aria-current="step"':''}>${s.label}</button>`).join('')}</div>${body}<div class="step-footer">${step>0?button(icon('back')+'이전','step','ghost',`data-step="${step-1}"`):'<span></span>'}${step<5?button('다음 단계 '+icon('arrow'),'step','secondary',`data-step="${step+1}"`):button(lesson.isPreview?'연습 마치기':'레슨 완료','complete','primary')}</div></div>`;
+  return `<div class="page study-page"><div class="study-heading"><a class="back-link icon-button" href="#lessons" aria-label="레슨 목록">${icon('back')}</a><h1>${escape(lesson.title)}</h1><span class="step-counter">${step+1} / 6</span></div>${lesson.isPreview?'<p class="preview-notice">샘플 레슨 · 정식 학습 진도에 포함되지 않아요.</p>':`<p class="lesson-context">${escape(lesson.level)} · 레슨 ${escape(lesson.number)} · ${escape(a1Topics.find(t=>t.id===lesson.topic)?.title || '')}</p>`}<div class="stage-nav" aria-label="학습 단계">${stages.map((s,i)=>`<button class="stage ${i===step?'active':''}" data-action="step" data-step="${i}" ${i===step?'aria-current="step"':''}>${s.label}</button>`).join('')}</div>${step===0 && lesson.objectives?.length?`<section class="lesson-objectives"><h2>이번 레슨에서 할 수 있는 것</h2>${learningList(lesson.objectives)}</section>`:''}${body}<div class="step-footer">${step>0?button(icon('back')+'이전','step','ghost',`data-step="${step-1}"`):'<span></span>'}${step<5?button('다음 단계 '+icon('arrow'),'step','secondary',`data-step="${step+1}"`):button(lesson.isPreview?'연습 마치기':'레슨 완료','complete','primary')}</div></div>`;
 }
 function sentencesPage() {
   const filtered=[...state.sentences].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).filter(s=>stripStress(s.text+' '+s.translation).includes(stripStress(searchQuery)));
@@ -169,7 +185,7 @@ async function action(target) {
   const {action:act,id}=target.dataset;
   switch(act){
     case 'close-modal': modal.close(); break;
-    case 'step': store.setProgress(currentLesson().id,Number(target.dataset.step));render();break;
+    case 'step': store.setProgress(currentLesson().id,Number(target.dataset.step));render(true);break;
     case 'reference': referenceTab=target.dataset.tab;render();document.querySelector(`#tab-${referenceTab}`)?.focus();break;
     case 'speak': speak(target.dataset.text,Number(target.dataset.rate||0.85));break;
     case 'save-sentence': {
