@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220" fill="none">
+  <defs>
+    <linearGradient id="mint" x1="45" y1="151" x2="133" y2="213" gradientUnits="userSpaceOnUse"><stop stop-color="#D2E8DB"/><stop offset="1" stop-color="#9AC5B0"/></linearGradient>
+    <linearGradient id="paper" x1="87" y1="48" x2="155" y2="157" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFDF8"/><stop offset="1" stop-color="#F6E8DD"/></linearGradient>
+    <linearGradient id="pen" x1="135" y1="58" x2="154" y2="66" gradientUnits="userSpaceOnUse"><stop stop-color="#582B39"/><stop offset=".45" stop-color="#A36C77"/><stop offset=".7" stop-color="#865063"/><stop offset="1" stop-color="#592B3A"/></linearGradient>
+    <filter id="shadow" x="0" y="0" width="220" height="220" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#713F30" flood-opacity=".14"/></filter>
+    <filter id="penShadow" x="85" y="27" width="110" height="157" filterUnits="userSpaceOnUse"><feDropShadow dx="3" dy="4" stdDeviation="3" flood-color="#572E2D" flood-opacity=".22"/></filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="31" y="131" width="112" height="82" rx="7" transform="rotate(-34 31 131)" fill="url(#mint)"/>
+    <rect x="48" y="63" width="119" height="135" rx="8" transform="rotate(-18 48 63)" fill="url(#paper)" stroke="#FFFCF8" stroke-width="1.6"/>
+  </g>
+  <g filter="url(#penShadow)" transform="rotate(32 143 100)">
+    <path d="M136 45C136 41.134 139.134 38 143 38C146.866 38 150 41.134 150 45V133H136V45Z" fill="url(#pen)"/>
+    <path d="M139 46C139 44 140 43 141 43" stroke="#D6A9B1" stroke-width="1.4" stroke-linecap="round" opacity=".65"/>
+    <path d="M136 99H150V103H136V99Z" fill="#E7D2C5"/>
+    <path d="M136 103H150V105H136V103Z" fill="#F7E5D6"/>
+    <path d="M136 133H150L145.2 148H140.8L136 133Z" fill="#663241"/>
+    <path d="M140.8 148H145.2L143 157L140.8 148Z" fill="#2E2630"/>
+    <path d="M146.8 48V77" stroke="#C1929E" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+  </g>
+</svg>

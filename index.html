@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fff9f5">
+  <meta name="description" content="배운 표현으로 나만의 문장을 만드는 개인 러시아어 학습 노트">
+  <title>러시아어 노트</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#app">본문으로 이동</a>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="#home" aria-label="러시아어 노트 홈"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 5C9 2 4 3 2 4v15c3-2 7-1 10 1 3-2 7-3 10-1V4c-3-1-7-2-10 1Z"/><path d="M12 5v15"/></svg><span>러시아어 노트</span></a>
+      <button class="icon-button" id="settings-button" aria-label="설정과 데이터 관리"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    </header>
+    <div id="storage-warning" class="storage-warning" role="alert" hidden></div>
+    <main id="app" tabindex="-1"></main>
+    <nav class="bottom-nav" aria-label="주요 메뉴" id="navigation"></nav>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="modal" aria-labelledby="modal-title"></dialog>
+  <noscript><p>러시아어 노트를 사용하려면 브라우저의 JavaScript를 켜 주세요.</p></noscript>
+</body>
+</html>
